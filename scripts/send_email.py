@@ -1,5 +1,6 @@
 import os
 import smtplib
+import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import sys
@@ -13,9 +14,17 @@ def send_email(subject, body, to_email, smtp_server, smtp_port, smtp_user, smtp_
 
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
-        with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
-            server.login(smtp_user, smtp_password)
-            server.send_message(msg)
+        # Try SSL first, then fall back to TLS
+        try:
+            with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        except (ssl.SSLError, ConnectionRefusedError):
+            # Fallback to TLS
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
 
         print("Email sent successfully")
         return True

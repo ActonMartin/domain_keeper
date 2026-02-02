@@ -5,34 +5,42 @@ import sys
 import requests
 
 def get_domain_expiration_date(domain_name, api_key, api_secret):
-    api_url = "https://api005.dnshe.com/index.php?m=domain_hub&endpoint=dns_records&action=list"
+    # Use official API endpoint from documentation
+    api_endpoints = [
+        "https://api005.dnshe.com/index.php?m=domain_hub&endpoint=dns_records&action=list"
+    ]
     
-    try:
-        response = requests.get(
-            api_url,
-            headers={
-                "X-API-Key": api_key,
-                "X-API-Secret": api_secret
-            }
-        )
-        
-        response.raise_for_status()
-        data = response.json()
-        
-        if data.get("success"):
-            for subdomain in data.get("subdomains", []):
-                if subdomain.get("subdomain") == domain_name:
-                    expires_at = subdomain.get("expires_at")
-                    if expires_at:
-                        return datetime.strptime(expires_at, "%Y-%m-%d %H:%M:%S")
-            print(f"Error: Domain {domain_name} not found in API response")
-            return None
-        else:
-            print(f"Error: API request failed - {data.get('error')}")
-            return None
-    except Exception as e:
-        print(f"Error checking domain expiration for {domain_name}: {e}")
-        return None
+    for api_url in api_endpoints:
+        try:
+            response = requests.get(
+                api_url,
+                headers={
+                    "X-API-Key": api_key,
+                    "X-API-Secret": api_secret
+                },
+                timeout=10
+            )
+            
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get("success"):
+                for subdomain in data.get("subdomains", []):
+                    if subdomain.get("subdomain") == domain_name:
+                        expires_at = subdomain.get("expires_at")
+                        if expires_at:
+                            return datetime.strptime(expires_at, "%Y-%m-%d %H:%M:%S")
+                print(f"Error: Domain {domain_name} not found in API response")
+                return None
+            else:
+                print(f"Error: API request failed - {data.get('error')}")
+                continue
+        except requests.exceptions.RequestException as e:
+            print(f"Error with endpoint {api_url}: {e}")
+            continue
+    
+    print(f"All API endpoints failed for domain {domain_name}")
+    return None
 
 def check_domain(domain_name, api_key, api_secret):
     expiration_date = get_domain_expiration_date(domain_name, api_key, api_secret)
