@@ -110,14 +110,33 @@ def send_renewal_report(renewal_results):
     
     # Send email
     try:
+        # Get environment variables with defaults
+        email_to = os.getenv('EMAIL_TO')
+        smtp_server = os.getenv('SMTP_SERVER')
+        smtp_port = os.getenv('SMTP_PORT', '25')
+        smtp_user = os.getenv('SMTP_USER')
+        smtp_password = os.getenv('SMTP_PASSWORD')
+        
+        # Validate required variables
+        if not all([email_to, smtp_server, smtp_user, smtp_password]):
+            print("\n❌ 缺少邮件配置环境变量")
+            return
+        
+        # Convert port to integer
+        try:
+            smtp_port = int(smtp_port)
+        except ValueError:
+            print(f"\n❌ 无效的 SMTP 端口: {smtp_port}")
+            return
+        
         send_email.send_email(
             subject,
             body,
-            os.getenv('EMAIL_TO'),
-            os.getenv('SMTP_SERVER'),
-            int(os.getenv('SMTP_PORT')),
-            os.getenv('SMTP_USER'),
-            os.getenv('SMTP_PASSWORD')
+            email_to,
+            smtp_server,
+            smtp_port,
+            smtp_user,
+            smtp_password
         )
         print("\n✅ 续期报告已发送到邮箱")
     except Exception as e:
