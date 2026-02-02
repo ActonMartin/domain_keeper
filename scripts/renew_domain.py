@@ -1,41 +1,63 @@
 import os
 import sys
 import requests
+import time
 
 def get_all_subdomains(api_key, api_secret):
     api_url = "https://api005.dnshe.com/index.php?m=domain_hub&endpoint=dns_records&action=list"
     
-    try:
-        response = requests.get(
-            api_url,
-            headers={
-                "X-API-Key": api_key,
-                "X-API-Secret": api_secret
-            }
-        )
-        
-        response.raise_for_status()
-        data = response.json()
-        
-        if data.get("success"):
-            return data.get("subdomains", [])
-        else:
-            print(f"Error: API request failed - {data.get('error')}")
+    headers = {
+        "X-API-Key": api_key,
+        "X-API-Secret": api_secret,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+
+    # Retry logic
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(
+                api_url,
+                headers=headers,
+                timeout=30
+            )
+            
+            if 500 <= response.status_code < 600:
+                print(f"Server error {response.status_code} in get_all_subdomains. Retrying...")
+                time.sleep(2)
+                continue
+
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get("success"):
+                return data.get("subdomains", [])
+            else:
+                print(f"Error: API request failed - {data.get('error')}")
+                return None
+        except requests.exceptions.RequestException as e:
+            print(f"Error getting subdomains: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(2)
+                continue
             return None
-    except requests.exceptions.RequestException as e:
-        print(f"Error getting subdomains: {e}")
-        return None
+    return None
 
 def renew_domain(subdomain_id, api_key, api_secret):
+    # Note: Using action=list with subdomain_id seems to be the way to check status/renew based on existing code structure
     api_url = f"https://api005.dnshe.com/index.php?m=domain_hub&endpoint=dns_records&action=list&subdomain_id={subdomain_id}"
     
+    headers = {
+        "X-API-Key": api_key,
+        "X-API-Secret": api_secret,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+
     try:
         response = requests.get(
             api_url,
-            headers={
-                "X-API-Key": api_key,
-                "X-API-Secret": api_secret
-            }
+            headers=headers,
+            timeout=30
         )
         
         response.raise_for_status()
