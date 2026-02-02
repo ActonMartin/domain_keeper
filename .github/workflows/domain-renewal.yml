@@ -1,0 +1,60 @@
+name: Domain Auto Renewal
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # 每天 UTC 时间 0 点运行
+  workflow_dispatch: # 手动触发
+
+jobs:
+  check-and-renew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install python-whois python-dotenv
+
+      - name: Check domain expiration
+        id: check-expiration
+        env:
+          DOMAIN_NAMES: ${{ secrets.DOMAIN_NAMES }}
+          API_KEY: ${{ secrets.API_KEY }}
+          API_SECRET: ${{ secrets.API_SECRET }}
+        run: |
+          python scripts/check_domain_expiration.py
+
+      - name: Auto renew domains if needed
+        id: renew-domains
+        if: steps.check-expiration.outputs.needs_renewal == 'true'
+        env:
+          DOMAIN_NAMES: ${{ secrets.DOMAIN_NAMES }}
+          API_KEY: ${{ secrets.API_KEY }}
+          API_SECRET: ${{ secrets.API_SECRET }}
+        run: |
+          python scripts/renew_domain.py
+
+      - name: Send daily report email
+        env:
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_SUBJECT: "每日域名状态报告"
+          EMAIL_BODY: |
+            域名自动续期每日报告
+            --------------------
+            检查时间: ${{ github.run_id }}
+            需要续期: ${{ steps.check-expiration.outputs.needs_renewal }}
+            续期结果: ${{ steps.renew-domains.outcome }}
+            域名列表: ${{ secrets.DOMAIN_NAMES }}
+        run: |
+          python scripts/send_email.py
