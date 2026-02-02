@@ -115,7 +115,7 @@ def send_renewal_report(renewal_results):
             body,
             os.getenv('EMAIL_TO'),
             os.getenv('SMTP_SERVER'),
-            os.getenv('SMTP_PORT'),
+            int(os.getenv('SMTP_PORT')),
             os.getenv('SMTP_USER'),
             os.getenv('SMTP_PASSWORD')
         )
