@@ -2,6 +2,11 @@ import os
 import sys
 import requests
 import time
+import datetime
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 def get_all_subdomains(api_key, api_secret):
     api_url = "https://api005.dnshe.com/index.php?m=domain_hub&endpoint=subdomains&action=list"
@@ -82,14 +87,6 @@ def renew_domain(subdomain_id, api_key, api_secret):
         return None
 
 def send_renewal_report(renewal_results, email_config):
-    # Import send_email function
-    import importlib.util
-    import os
-    send_email_path = os.path.join(os.path.dirname(__file__), "send_email.py")
-    spec = importlib.util.spec_from_file_location("send_email", send_email_path)
-    send_email = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(send_email)
-    
     # Prepare email content
     subject = "域名续期报告"
     body = "域名续期报告\n"
@@ -147,15 +144,26 @@ def send_renewal_report(renewal_results, email_config):
             print(f"\n❌ 无效的 SMTP 端口: {smtp_port}")
             return
         
-        send_email.send_email(
-            subject,
-            body,
-            email_to,
-            smtp_server,
-            smtp_port,
-            smtp_user,
-            smtp_password
-        )
+        # Send email using SMTP
+        msg = MIMEMultipart()
+        msg['From'] = smtp_user
+        msg['To'] = email_to
+        msg['Subject'] = subject
+
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+
+        # Try SSL first, then fall back to TLS
+        try:
+            with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        except (ssl.SSLError, ConnectionRefusedError):
+            # Fallback to TLS
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+
         print("\n✅ 续期报告已发送到邮箱")
     except Exception as e:
         print(f"\n❌ 发送邮件失败: {e}")
