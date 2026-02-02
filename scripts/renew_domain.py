@@ -113,11 +113,29 @@ def send_renewal_report(renewal_results):
         # Get environment variables with defaults
         email_to = os.getenv('EMAIL_TO')
         smtp_server = os.getenv('SMTP_SERVER')
-        smtp_port = os.getenv('SMTP_PORT', '25')
+        smtp_port = os.getenv('SMTP_PORT', '465')
         smtp_user = os.getenv('SMTP_USER')
         smtp_password = os.getenv('SMTP_PASSWORD')
         
+        # Debug: Print environment variables
+        print("\n--- Email Configuration Debug ---")
+        print(f"EMAIL_TO: {email_to}")
+        print(f"SMTP_SERVER: {smtp_server}")
+        print(f"SMTP_PORT: {smtp_port}")
+        print(f"SMTP_USER: {smtp_user}")
+        print(f"SMTP_PASSWORD: {'***' if smtp_password else 'None'}")
+        print("--------------------------------")
+        
         # Validate required variables
+        if not email_to:
+            print("\n❌ 缺少 EMAIL_TO 环境变量")
+        if not smtp_server:
+            print("\n❌ 缺少 SMTP_SERVER 环境变量")
+        if not smtp_user:
+            print("\n❌ 缺少 SMTP_USER 环境变量")
+        if not smtp_password:
+            print("\n❌ 缺少 SMTP_PASSWORD 环境变量")
+        
         if not all([email_to, smtp_server, smtp_user, smtp_password]):
             print("\n❌ 缺少邮件配置环境变量")
             return
