@@ -4,7 +4,7 @@ import requests
 import time
 
 def get_all_subdomains(api_key, api_secret):
-    api_url = "https://api005.dnshe.com/index.php?m=domain_hub&endpoint=dns_records&action=list"
+    api_url = "https://api005.dnshe.com/index.php?m=domain_hub&endpoint=subdomains&action=list"
     
     headers = {
         "X-API-Key": api_key,
@@ -44,8 +44,8 @@ def get_all_subdomains(api_key, api_secret):
     return None
 
 def renew_domain(subdomain_id, api_key, api_secret):
-    # Note: Using action=list with subdomain_id seems to be the way to check status/renew based on existing code structure
-    api_url = f"https://api005.dnshe.com/index.php?m=domain_hub&endpoint=dns_records&action=list&subdomain_id={subdomain_id}"
+    # Use correct renewal endpoint
+    api_url = f"https://api005.dnshe.com/index.php?m=domain_hub&endpoint=subdomains&action=renew&subdomain_id={subdomain_id}"
     
     headers = {
         "X-API-Key": api_key,
@@ -63,18 +63,62 @@ def renew_domain(subdomain_id, api_key, api_secret):
         response.raise_for_status()
         data = response.json()
         
+        print(f"Renewal response for ID {subdomain_id}: {data}")
+        
         if data.get("success"):
-            print(f"Successfully renewed domain with ID: {subdomain_id}")
-            print(f"Previous expiration: {data.get('previous_expires_at')}")
-            print(f"New expiration: {data.get('new_expires_at')}")
-            print(f"Remaining days: {data.get('remaining_days')}")
-            return True
+            print(f"✅ Successfully renewed domain with ID: {subdomain_id}")
+            print(f"  Message: {data.get('message')}")
+            print(f"  Previous expiration: {data.get('previous_expires_at')}")
+            print(f"  New expiration: {data.get('new_expires_at')}")
+            print(f"  Charged amount: {data.get('charged_amount')}")
+            print(f"  Remaining days: {data.get('remaining_days')}")
+            return data
         else:
-            print(f"Error: Domain renewal failed - {data.get('error')}")
-            return False
+            print(f"❌ Domain renewal failed - {data.get('error')}")
+            return None
     except requests.exceptions.RequestException as e:
         print(f"Error renewing domain: {e}")
-        return False
+        return None
+
+def send_renewal_report(renewal_results):
+    # Import send_email function
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("send_email", "scripts/send_email.py")
+    send_email = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(send_email)
+    
+    # Prepare email content
+    subject = "域名续期报告"
+    body = "域名续期报告\n"
+    body += "=" * 30 + "\n"
+    
+    for result in renewal_results:
+        body += f"域名: {result['domain']}\n"
+        body += f"ID: {result['id']}\n"
+        body += f"状态: {'✅ 成功' if result['success'] else '❌ 失败'}\n"
+        if result['success']:
+            body += f"原到期时间: {result['previous_expires_at']}\n"
+            body += f"新到期时间: {result['new_expires_at']}\n"
+            body += f"费用: {result['charged_amount']}\n"
+            body += f"剩余天数: {result['remaining_days']}\n"
+        else:
+            body += f"错误信息: {result['error']}\n"
+        body += "-" * 30 + "\n"
+    
+    # Send email
+    try:
+        send_email.send_email(
+            subject,
+            body,
+            os.getenv('EMAIL_TO'),
+            os.getenv('SMTP_SERVER'),
+            os.getenv('SMTP_PORT'),
+            os.getenv('SMTP_USER'),
+            os.getenv('SMTP_PASSWORD')
+        )
+        print("\n✅ 续期报告已发送到邮箱")
+    except Exception as e:
+        print(f"\n❌ 发送邮件失败: {e}")
 
 def main():
     domain_names = os.getenv('DOMAIN_NAMES')
@@ -94,6 +138,7 @@ def main():
         sys.exit(1)
     
     # Renew each target domain
+    renewal_results = []
     for domain in target_domains:
         print(f"\nProcessing domain: {domain}")
         found = False
@@ -101,13 +146,39 @@ def main():
             if subdomain.get("subdomain") == domain:
                 subdomain_id = subdomain.get("id")
                 print(f"Found subdomain ID: {subdomain_id}")
-                success = renew_domain(subdomain_id, api_key, api_secret)
-                if not success:
+                result = renew_domain(subdomain_id, api_key, api_secret)
+                
+                if result:
+                    renewal_results.append({
+                        'domain': domain,
+                        'id': subdomain_id,
+                        'success': True,
+                        'previous_expires_at': result.get('previous_expires_at'),
+                        'new_expires_at': result.get('new_expires_at'),
+                        'charged_amount': result.get('charged_amount'),
+                        'remaining_days': result.get('remaining_days')
+                    })
+                else:
+                    renewal_results.append({
+                        'domain': domain,
+                        'id': subdomain_id,
+                        'success': False,
+                        'error': '续期失败'
+                    })
                     print(f"Failed to renew domain: {domain}")
                 found = True
                 break
         if not found:
+            renewal_results.append({
+                'domain': domain,
+                'id': None,
+                'success': False,
+                'error': '未找到域名'
+            })
             print(f"Error: Domain {domain} not found in API response")
+    
+    # Send renewal report
+    send_renewal_report(renewal_results)
 
 if __name__ == "__main__":
     main()

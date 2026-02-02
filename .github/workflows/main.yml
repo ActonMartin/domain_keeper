@@ -22,18 +22,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install python-dotenv requests pytz
 
-      - name: Check domain expiration
-        id: check-expiration
-        env:
-          DOMAIN_NAMES: ${{ secrets.DOMAIN_NAMES }}
-          API_KEY: ${{ secrets.API_KEY }}
-          API_SECRET: ${{ secrets.API_SECRET }}
-        run: |
-          python scripts/check_domain_expiration.py
-
-      - name: Auto renew domains if needed
-        id: renew-domains
-        if: steps.check-expiration.outputs.needs_renewal == 'true'
+      - name: Check and renew domains
+        id: check-and-renew
         env:
           DOMAIN_NAMES: ${{ secrets.DOMAIN_NAMES }}
           API_KEY: ${{ secrets.API_KEY }}
@@ -41,20 +31,5 @@ jobs:
         run: |
           python scripts/renew_domain.py
 
-      - name: Send daily report email
-        env:
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          EMAIL_SUBJECT: "每日域名状态报告"
-          EMAIL_BODY: |
-            域名自动续期每日报告
-            --------------------
-            检查时间: ${{ github.run_id }}
-            需要续期: ${{ steps.check-expiration.outputs.needs_renewal }}
-            续期结果: ${{ steps.renew-domains.outcome }}
-            域名列表: ${{ secrets.DOMAIN_NAMES }}
-        run: |
-          python scripts/send_email.py
+      # Email sending is now handled within renew_domain.py
+      # This step is no longer needed
