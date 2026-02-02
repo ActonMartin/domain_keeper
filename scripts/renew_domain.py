@@ -81,7 +81,7 @@ def renew_domain(subdomain_id, api_key, api_secret):
         print(f"Error renewing domain: {e}")
         return None
 
-def send_renewal_report(renewal_results):
+def send_renewal_report(renewal_results, email_config):
     # Import send_email function
     import importlib.util
     import os
@@ -110,12 +110,12 @@ def send_renewal_report(renewal_results):
     
     # Send email
     try:
-        # Get environment variables with defaults
-        email_to = os.getenv('EMAIL_TO')
-        smtp_server = os.getenv('SMTP_SERVER')
-        smtp_port = os.getenv('SMTP_PORT', '465')
-        smtp_user = os.getenv('SMTP_USER')
-        smtp_password = os.getenv('SMTP_PASSWORD')
+        # Use passed email config
+        email_to = email_config.get('EMAIL_TO')
+        smtp_server = email_config.get('SMTP_SERVER')
+        smtp_port = email_config.get('SMTP_PORT', '465')
+        smtp_user = email_config.get('SMTP_USER')
+        smtp_password = email_config.get('SMTP_PASSWORD')
         
         # Debug: Print environment variables
         print("\n--- Email Configuration Debug ---")
@@ -164,6 +164,15 @@ def main():
     domain_names = os.getenv('DOMAIN_NAMES')
     api_key = os.getenv('API_KEY')
     api_secret = os.getenv('API_SECRET')
+    
+    # Get email configuration
+    email_config = {
+        'EMAIL_TO': os.getenv('EMAIL_TO'),
+        'SMTP_SERVER': os.getenv('SMTP_SERVER'),
+        'SMTP_PORT': os.getenv('SMTP_PORT', '465'),
+        'SMTP_USER': os.getenv('SMTP_USER'),
+        'SMTP_PASSWORD': os.getenv('SMTP_PASSWORD')
+    }
     
     if not domain_names or not api_key or not api_secret:
         print("Error: Missing environment variables")
@@ -218,7 +227,7 @@ def main():
             print(f"Error: Domain {domain} not found in API response")
     
     # Send renewal report
-    send_renewal_report(renewal_results)
+    send_renewal_report(renewal_results, email_config)
 
 if __name__ == "__main__":
     main()
