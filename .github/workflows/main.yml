@@ -28,6 +28,11 @@ jobs:
           DOMAIN_NAMES: ${{ secrets.DOMAIN_NAMES }}
           API_KEY: ${{ secrets.API_KEY }}
           API_SECRET: ${{ secrets.API_SECRET }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: |
           python scripts/renew_domain.py
 
