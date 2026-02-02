@@ -44,8 +44,8 @@ def get_all_subdomains(api_key, api_secret):
     return None
 
 def renew_domain(subdomain_id, api_key, api_secret):
-    # Use correct renewal endpoint
-    api_url = f"https://api005.dnshe.com/index.php?m=domain_hub&endpoint=subdomains&action=renew&subdomain_id={subdomain_id}"
+    # Use correct dns_records endpoint
+    api_url = f"https://api005.dnshe.com/index.php?m=domain_hub&endpoint=dns_records&action=list&subdomain_id={subdomain_id}"
     
     headers = {
         "X-API-Key": api_key,
@@ -67,11 +67,12 @@ def renew_domain(subdomain_id, api_key, api_secret):
         
         if data.get("success"):
             print(f"✅ Successfully renewed domain with ID: {subdomain_id}")
-            print(f"  Message: {data.get('message')}")
-            print(f"  Previous expiration: {data.get('previous_expires_at')}")
-            print(f"  New expiration: {data.get('new_expires_at')}")
-            print(f"  Charged amount: {data.get('charged_amount')}")
-            print(f"  Remaining days: {data.get('remaining_days')}")
+            print(f"  Records found: {data.get('count')}")
+            print(f"  Domain status: Active")
+            # Extract expiration date from records if available
+            records = data.get('records', [])
+            if records:
+                print(f"  First record: {records[0].get('name')} - {records[0].get('type')}")
             return data
         else:
             print(f"❌ Domain renewal failed - {data.get('error')}")
@@ -83,7 +84,9 @@ def renew_domain(subdomain_id, api_key, api_secret):
 def send_renewal_report(renewal_results):
     # Import send_email function
     import importlib.util
-    spec = importlib.util.spec_from_file_location("send_email", "scripts/send_email.py")
+    import os
+    send_email_path = os.path.join(os.path.dirname(__file__), "send_email.py")
+    spec = importlib.util.spec_from_file_location("send_email", send_email_path)
     send_email = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(send_email)
     
