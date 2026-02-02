@@ -1,26 +1,48 @@
-import whois
 import os
 from datetime import datetime, timedelta
+import pytz
 import sys
+import requests
 
-def get_domain_expiration_date(domain_name):
+def get_domain_expiration_date(domain_name, api_key, api_secret):
+    api_url = "https://api005.dnshe.com/index.php?m=domain_hub&endpoint=dns_records&action=list"
+    
     try:
-        w = whois.whois(domain_name)
-        expiration_date = w.expiration_date
-        if isinstance(expiration_date, list):
-            expiration_date = expiration_date[0]
-        return expiration_date
+        response = requests.get(
+            api_url,
+            headers={
+                "X-API-Key": api_key,
+                "X-API-Secret": api_secret
+            }
+        )
+        
+        response.raise_for_status()
+        data = response.json()
+        
+        if data.get("success"):
+            for subdomain in data.get("subdomains", []):
+                if subdomain.get("subdomain") == domain_name:
+                    expires_at = subdomain.get("expires_at")
+                    if expires_at:
+                        return datetime.strptime(expires_at, "%Y-%m-%d %H:%M:%S")
+            print(f"Error: Domain {domain_name} not found in API response")
+            return None
+        else:
+            print(f"Error: API request failed - {data.get('error')}")
+            return None
     except Exception as e:
         print(f"Error checking domain expiration for {domain_name}: {e}")
         return None
 
-def check_domain(domain_name):
-    expiration_date = get_domain_expiration_date(domain_name)
+def check_domain(domain_name, api_key, api_secret):
+    expiration_date = get_domain_expiration_date(domain_name, api_key, api_secret)
     if not expiration_date:
         print(f"Error: Could not retrieve expiration date for {domain_name}")
         return False
 
-    today = datetime.now()
+    today = datetime.now(pytz.UTC)
+    if expiration_date.tzinfo is None:
+        expiration_date = expiration_date.replace(tzinfo=pytz.UTC)
     days_remaining = (expiration_date - today).days
 
     print(f"\nDomain: {domain_name}")
@@ -36,15 +58,18 @@ def check_domain(domain_name):
 
 def main():
     domain_names = os.getenv('DOMAIN_NAMES')
-    if not domain_names:
-        print("Error: DOMAIN_NAMES environment variable not set")
+    api_key = os.getenv('API_KEY')
+    api_secret = os.getenv('API_SECRET')
+    
+    if not domain_names or not api_key or not api_secret:
+        print("Error: Missing environment variables")
         sys.exit(1)
 
     domains = [d.strip() for d in domain_names.split(',')]
     needs_renewal = False
 
     for domain in domains:
-        if check_domain(domain):
+        if check_domain(domain, api_key, api_secret):
             needs_renewal = True
 
     # Set output variable for GitHub Actions
