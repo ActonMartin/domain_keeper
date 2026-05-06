@@ -204,7 +204,10 @@ def main():
     # Debug: Print all available subdomains
     print("\n--- Available Subdomains from API ---")
     for subdomain in subdomains:
-        print(f"  - {subdomain.get('subdomain')} (ID: {subdomain.get('id')}) - Full data: {subdomain}")
+        full_domain = subdomain.get('full_domain', 'N/A')
+        subdomain_id = subdomain.get('id')
+        status = subdomain.get('status', 'N/A')
+        print(f"  - {full_domain} (ID: {subdomain_id}, Status: {status})")
     print(f"Total subdomains found: {len(subdomains)}")
     print("------------------------------------\n")
     
@@ -214,11 +217,9 @@ def main():
         print(f"\nProcessing domain: {domain}")
         found = False
         
-        # Extract subdomain name from full domain (e.g., "jolla.ccwu.cc" -> "jolla")
-        subdomain_name = domain.split('.')[0]
-        
         for subdomain in subdomains:
-            if subdomain.get("subdomain") == subdomain_name:
+            # Use full_domain for exact matching (e.g., "jolla.ccwu.cc")
+            if subdomain.get("full_domain") == domain:
                 subdomain_id = subdomain.get("id")
                 print(f"Found subdomain ID: {subdomain_id}")
                 result = renew_domain(subdomain_id, api_key, api_secret)
