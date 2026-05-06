@@ -5,6 +5,7 @@ import time
 import datetime
 import smtplib
 import ssl
+import json
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -86,7 +87,67 @@ def renew_domain(subdomain_id, api_key, api_secret):
         print(f"Error renewing domain: {e}")
         return None
 
-def send_renewal_report(renewal_results, email_config):
+def send_wxpusher_notification(content, wxpusher_config):
+    """发送 WxPusher 微信推送通知"""
+    app_token = wxpusher_config.get('WXPUSHER_APP_TOKEN')
+    uids = wxpusher_config.get('WXPUSHER_UIDS')
+    api_url = wxpusher_config.get('WXPUSHER_URL')
+    
+    # 检查配置
+    if not all([app_token, uids, api_url]):
+        print("\n⚠️  WxPusher 配置不完整，跳过微信推送")
+        return False
+    
+    # 解析 UIDs（支持逗号分隔）
+    uid_list = [uid.strip() for uid in uids.split(',') if uid.strip()]
+    
+    if not uid_list:
+        print("\n⚠️  WxPusher UIDs 为空，跳过微信推送")
+        return False
+    
+    # 构建请求数据
+    payload = {
+        "appToken": app_token,
+        "content": content,
+        "contentType": 1,  # 1 表示文本内容
+        "uids": uid_list
+    }
+    
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        print(f"\n📱 正在发送 WxPusher 推送...")
+        print(f"   API URL: {api_url}")
+        print(f"   UIDs: {', '.join(uid_list)}")
+        
+        response = requests.post(
+            api_url,
+            headers=headers,
+            data=json.dumps(payload),
+            timeout=30
+        )
+        
+        response.raise_for_status()
+        result = response.json()
+        
+        # WxPusher 返回格式：{"code": 1000, "msg": "success", "data": {...}}
+        if result.get('code') == 1000:
+            print("✅ WxPusher 推送成功")
+            return True
+        else:
+            print(f"❌ WxPusher 推送失败: {result.get('msg', '未知错误')}")
+            return False
+            
+    except requests.exceptions.RequestException as e:
+        print(f"❌ WxPusher 推送异常: {e}")
+        return False
+    except Exception as e:
+        print(f"❌ WxPusher 推送异常: {e}")
+        return False
+
+def send_renewal_report(renewal_results, email_config, wxpusher_config=None):
     from datetime import datetime
     
     # Calculate statistics
@@ -242,6 +303,12 @@ def send_renewal_report(renewal_results, email_config):
         print("\n✅ 续期报告已发送到邮箱")
     except Exception as e:
         print(f"\n❌ 发送邮件失败: {e}")
+    
+    # Send WxPusher notification
+    if wxpusher_config:
+        # 为 WxPusher 准备内容（添加标题）
+        wxpusher_content = f"【{subject}】\n\n{body}"
+        send_wxpusher_notification(wxpusher_content, wxpusher_config)
 
 def main():
     domain_names = os.getenv('DOMAIN_NAMES')
@@ -255,6 +322,13 @@ def main():
         'SMTP_PORT': os.getenv('SMTP_PORT', '465'),
         'SMTP_USER': os.getenv('SMTP_USER'),
         'SMTP_PASSWORD': os.getenv('SMTP_PASSWORD')
+    }
+    
+    # Get WxPusher configuration
+    wxpusher_config = {
+        'WXPUSHER_APP_TOKEN': os.getenv('WXPUSHER_APP_TOKEN'),
+        'WXPUSHER_UIDS': os.getenv('WXPUSHER_UIDS'),
+        'WXPUSHER_URL': os.getenv('WXPUSHER_URL')
     }
     
     if not domain_names or not api_key or not api_secret:
@@ -329,7 +403,7 @@ def main():
             print(f"Error: Domain {domain} not found in API response")
     
     # Send renewal report
-    send_renewal_report(renewal_results, email_config)
+    send_renewal_report(renewal_results, email_config, wxpusher_config)
 
 if __name__ == "__main__":
     main()
