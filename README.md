@@ -192,7 +192,6 @@ domain_keeper/
 │       └── main.yml          # GitHub Actions 工作流配置
 ├── scripts/
 │   ├── renew_domain.py       # 主程序：域名续期和报告生成
-│   └── send_email.py         # 邮件发送模块
 ├── .env.example              # 环境变量示例文件
 ├── .gitignore                # Git 忽略文件配置
 ├── requirements.txt          # Python 依赖列表
