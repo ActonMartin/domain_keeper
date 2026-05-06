@@ -87,23 +87,98 @@ def renew_domain(subdomain_id, api_key, api_secret):
         return None
 
 def send_renewal_report(renewal_results, email_config):
-    # Prepare email content
-    subject = "域名续期报告"
-    body = "域名续期报告\n"
-    body += "=" * 30 + "\n"
+    from datetime import datetime
     
-    for result in renewal_results:
-        body += f"域名: {result['domain']}\n"
-        body += f"ID: {result['id']}\n"
-        body += f"状态: {'✅ 成功' if result['success'] else '❌ 失败'}\n"
+    # Calculate statistics
+    total_domains = len(renewal_results)
+    successful_renewals = sum(1 for r in renewal_results if r['success'])
+    failed_renewals = total_domains - successful_renewals
+    success_rate = (successful_renewals / total_domains * 100) if total_domains > 0 else 0
+    
+    # Prepare email content
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    subject = f"域名续期报告 - {current_time} ({successful_renewals}/{total_domains} 成功)"
+    
+    # Build report header
+    body = "╔" + "═" * 68 + "╗\n"
+    body += "║" + "域名自动续期报告".center(66) + "║\n"
+    body += "╠" + "═" * 68 + "╣\n"
+    body += f"║ 报告时间: {current_time:<54}║\n"
+    body += f"║ 总域名数: {total_domains:<54}║\n"
+    body += f"║ 成功续期: {successful_renewals:<54}║\n"
+    body += f"║ 失败续期: {failed_renewals:<54}║\n"
+    body += f"║ 成功率:   {success_rate:.1f}%{' ' * 49}║\n"
+    body += "╚" + "═" * 68 + "╝\n\n"
+    
+    # Add summary section
+    if successful_renewals > 0:
+        body += "✅ 成功续期的域名:\n"
+        body += "─" * 70 + "\n"
+        for result in renewal_results:
+            if result['success']:
+                body += f"  🌐 域名: {result['domain']}\n"
+                body += f"     ID: {result['id']}\n"
+                if result.get('previous_expires_at'):
+                    body += f"     原到期时间: {result['previous_expires_at']}\n"
+                if result.get('new_expires_at'):
+                    body += f"     新到期时间: {result['new_expires_at']}\n"
+                if result.get('remaining_days'):
+                    body += f"     剩余天数: {result['remaining_days']} 天\n"
+                if result.get('charged_amount'):
+                    body += f"     续期费用: {result['charged_amount']}\n"
+                body += "\n"
+        body += "\n"
+    
+    # Add failed section
+    if failed_renewals > 0:
+        body += "❌ 失败续期的域名:\n"
+        body += "─" * 70 + "\n"
+        for result in renewal_results:
+            if not result['success']:
+                body += f"  🌐 域名: {result['domain']}\n"
+                body += f"     ID: {result.get('id', 'N/A')}\n"
+                body += f"     错误: {result.get('error', '未知错误')}\n"
+                body += "\n"
+        body += "\n"
+    
+    # Add detailed section
+    body += "📋 详细信息:\n"
+    body += "═" * 70 + "\n"
+    for idx, result in enumerate(renewal_results, 1):
+        status_icon = "✅" if result['success'] else "❌"
+        body += f"\n{idx}. {status_icon} {result['domain']}\n"
+        body += f"   状态: {'续期成功' if result['success'] else '续期失败'}\n"
+        body += f"   ID: {result.get('id', 'N/A')}\n"
+        
         if result['success']:
-            body += f"原到期时间: {result['previous_expires_at']}\n"
-            body += f"新到期时间: {result['new_expires_at']}\n"
-            body += f"费用: {result['charged_amount']}\n"
-            body += f"剩余天数: {result['remaining_days']}\n"
+            if result.get('previous_expires_at'):
+                body += f"   原到期时间: {result['previous_expires_at']}\n"
+            if result.get('new_expires_at'):
+                body += f"   新到期时间: {result['new_expires_at']}\n"
+            if result.get('remaining_days'):
+                days = result['remaining_days']
+                if days > 30:
+                    urgency = "🟢 充足"
+                elif days > 7:
+                    urgency = "🟡 即将到期"
+                else:
+                    urgency = "🔴 紧急"
+                body += f"   剩余天数: {days} 天 {urgency}\n"
+            if result.get('charged_amount'):
+                body += f"   续期费用: {result['charged_amount']}\n"
         else:
-            body += f"错误信息: {result['error']}\n"
-        body += "-" * 30 + "\n"
+            body += f"   错误信息: {result.get('error', '未知错误')}\n"
+    
+    # Add footer
+    body += "\n" + "═" * 70 + "\n"
+    body += "📌 提示:\n"
+    body += "  • 绿色 🟢: 剩余天数 > 30 天，状态良好\n"
+    body += "  • 黄色 🟡: 剩余天数 7-30 天，需要关注\n"
+    body += "  • 红色 🔴: 剩余天数 < 7 天，需要紧急处理\n"
+    body += "\n"
+    body += "此报告由 Domain Keeper 自动生成并发送。\n"
+    body += "如有问题，请检查 GitHub Actions 日志或联系管理员。\n"
+    body += "═" * 70 + "\n"
     
     # Send email
     try:
