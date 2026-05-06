@@ -188,11 +188,25 @@ def main():
     
     target_domains = [d.strip() for d in domain_names.split(',')]
     
+    # Debug: Print target domains
+    print("\n--- Target Domains ---")
+    for domain in target_domains:
+        print(f"  - {domain}")
+    print(f"Total target domains: {len(target_domains)}")
+    print("----------------------\n")
+    
     # Get all subdomains from API
     subdomains = get_all_subdomains(api_key, api_secret)
     if not subdomains:
         print("Error: Could not retrieve subdomains")
         sys.exit(1)
+    
+    # Debug: Print all available subdomains
+    print("\n--- Available Subdomains from API ---")
+    for subdomain in subdomains:
+        print(f"  - {subdomain.get('subdomain')} (ID: {subdomain.get('id')})")
+    print(f"Total subdomains found: {len(subdomains)}")
+    print("------------------------------------\n")
     
     # Renew each target domain
     renewal_results = []
