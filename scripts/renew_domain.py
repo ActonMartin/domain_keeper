@@ -36,6 +36,17 @@ def get_all_subdomains(api_key, api_secret):
             response.raise_for_status()
             data = response.json()
             
+            # Debug: Print API response structure
+            print("\n--- API Response Debug ---")
+            print(f"Success: {data.get('success')}")
+            if data.get("success"):
+                subdomains = data.get("subdomains", [])
+                print(f"Total subdomains: {len(subdomains)}")
+                if subdomains:
+                    print(f"First subdomain structure: {subdomains[0]}")
+                    print(f"Available keys: {list(subdomains[0].keys())}")
+            print("--------------------------\n")
+            
             if data.get("success"):
                 return data.get("subdomains", [])
             else:
@@ -69,17 +80,38 @@ def renew_domain(subdomain_id, api_key, api_secret):
         response.raise_for_status()
         data = response.json()
         
-        print(f"Renewal response for ID {subdomain_id}: {data}")
+        # Debug: Print full response structure
+        print(f"\n--- Renewal Response Debug ---")
+        print(f"Full response: {data}")
+        print(f"Available keys: {list(data.keys())}")
+        print("------------------------------\n")
         
         if data.get("success"):
             print(f"✅ Successfully renewed domain with ID: {subdomain_id}")
             print(f"  Records found: {data.get('count')}")
             print(f"  Domain status: Active")
+            
             # Extract expiration date from records if available
             records = data.get('records', [])
             if records:
                 print(f"  First record: {records[0].get('name')} - {records[0].get('type')}")
-            return data
+                print(f"  First record full data: {records[0]}")
+            
+            # Check for expiration info in response
+            result = {
+                'success': True,
+                'records': records,
+                'count': data.get('count')
+            }
+            
+            # Try to get expiration date from various possible fields
+            for key in ['expires_at', 'expire_at', 'expiration_date', 'expiry_date', 'expires']:
+                if key in data:
+                    result['expires_at'] = data[key]
+                    print(f"  Found expiration date in '{key}': {data[key]}")
+                    break
+            
+            return result
         else:
             print(f"❌ Domain renewal failed - {data.get('error')}")
             return None
@@ -356,7 +388,10 @@ def main():
         full_domain = subdomain.get('full_domain', 'N/A')
         subdomain_id = subdomain.get('id')
         status = subdomain.get('status', 'N/A')
-        print(f"  - {full_domain} (ID: {subdomain_id}, Status: {status})")
+        # Try to get expiration date
+        expires_at = subdomain.get('expires_at') or subdomain.get('expire_at') or subdomain.get('expiration_date')
+        expires_str = f", Expires: {expires_at}" if expires_at else ""
+        print(f"  - {full_domain} (ID: {subdomain_id}, Status: {status}{expires_str})")
     print(f"Total subdomains found: {len(subdomains)}")
     print("------------------------------------\n")
     
@@ -371,24 +406,35 @@ def main():
             if subdomain.get("full_domain") == domain:
                 subdomain_id = subdomain.get("id")
                 print(f"Found subdomain ID: {subdomain_id}")
+                
+                # Get current expiration date from subdomain info
+                current_expires_at = subdomain.get('expires_at') or subdomain.get('expire_at') or subdomain.get('expiration_date')
+                if current_expires_at:
+                    print(f"Current expiration date: {current_expires_at}")
+                
                 result = renew_domain(subdomain_id, api_key, api_secret)
                 
                 if result:
+                    # Get new expiration date from result or subdomain
+                    new_expires_at = result.get('expires_at') or result.get('new_expires_at')
+                    
                     renewal_results.append({
                         'domain': domain,
                         'id': subdomain_id,
                         'success': True,
-                        'previous_expires_at': result.get('previous_expires_at'),
-                        'new_expires_at': result.get('new_expires_at'),
+                        'previous_expires_at': current_expires_at,
+                        'new_expires_at': new_expires_at,
                         'charged_amount': result.get('charged_amount'),
-                        'remaining_days': result.get('remaining_days')
+                        'remaining_days': result.get('remaining_days'),
+                        'records_count': result.get('count')
                     })
                 else:
                     renewal_results.append({
                         'domain': domain,
                         'id': subdomain_id,
                         'success': False,
-                        'error': '续期失败'
+                        'error': '续期失败',
+                        'current_expires_at': current_expires_at
                     })
                     print(f"Failed to renew domain: {domain}")
                 found = True
